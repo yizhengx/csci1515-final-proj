@@ -169,8 +169,6 @@ void RegistrarClient::HandleRegister(
     
   VoterRow voter = this->db_driver->find_voter(v2r_reg_msg.id);
   if (voter.id == v2r_reg_msg.id){
-    // std::cout << "Found User " << voter.id << std::endl;
-    // std::cout << "Check id " << v2r_reg_msg.id << std::endl;
     // user found
     RegistrarToVoter_Blind_Signature_Message msg;
     msg.id = voter.id;
@@ -179,20 +177,37 @@ void RegistrarClient::HandleRegister(
     data_to_send = crypto_driver->encrypt_and_tag(AES_key, HMAC_key, &msg);
     network_driver->send(data_to_send);
   } else {
-    //3) Blindly signs the user's message and sends it to the user.
-    // CryptoPP::Integer
-    // CryptoDriver::RSA_BLIND_sign(const RSA::PrivateKey &private_key,
-    //                          CryptoPP::Integer blinded_msg) {
-    CryptoPP::Integer signature = crypto_driver->RSA_BLIND_sign(this->RSA_registrar_signing_key, v2r_reg_msg.vote);
+    /* ========================= OLD VERSION =========================*/
+    // //3) Blindly signs the user's message and sends it to the user.
+    // CryptoPP::Integer signature = crypto_driver->RSA_BLIND_sign(this->RSA_registrar_signing_key, v2r_reg_msg.vote);
+    // RegistrarToVoter_Blind_Signature_Message msg;
+    // msg.id = v2r_reg_msg.id;
+    // msg.registrar_signature = signature;
+    // std::vector<unsigned char> data_to_send;
+    // data_to_send = crypto_driver->encrypt_and_tag(AES_key, HMAC_key, &msg);
+    // network_driver->send(data_to_send);
+
+    // //4) Adds the user to the database and disconnects.
+    // voter.id = v2r_reg_msg.id;
+    // voter.registrar_signature = signature;
+    // this->db_driver->insert_voter(voter);
+    /* ======================== OLD VERSION END =======================*/
+
+    //3) Blindly signs the vector of user's message and sends the vector of signautres to the user.
     RegistrarToVoter_Blind_Signature_Message msg;
-    msg.id = v2r_reg_msg.id;
-    msg.registrar_signature = signature;
+    std::vector<CryptoPP::Integer> signatures;
+    for (auto vote : v2r_reg_msg.votes){
+      CryptoPP::Integer signature = crypto_driver->RSA_BLIND_sign(this->RSA_registrar_signing_key, vote);
+      signatures.push_back(signature);
+    }
+    msg.registrar_signatures = signatures;
     std::vector<unsigned char> data_to_send;
     data_to_send = crypto_driver->encrypt_and_tag(AES_key, HMAC_key, &msg);
     network_driver->send(data_to_send);
-    //4) Adds the user to the database and disconnects.
+
+    //4) Adds the user to the database and disconects
     voter.id = v2r_reg_msg.id;
-    voter.registrar_signature = signature;
+    voter.registrar_signatures = signatures;
     this->db_driver->insert_voter(voter);
   }
 

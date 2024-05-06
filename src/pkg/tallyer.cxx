@@ -173,46 +173,57 @@ void TallyerClient::HandleTally(std::shared_ptr<NetworkDriver> network_driver,
   vote_msg.deserialize(decrypted_data);
   
   if (!this->db_driver->vote_exists(vote_msg.vote)) {
-    // bool CryptoDriver::RSA_verify(const RSA::PublicKey &verification_key,
-    //                             std::vector<unsigned char> message,
-    //                             std::string signature)
     VoteRow vote_in_db;
-    valid = crypto_driver->RSA_BLIND_verify(
-      this->RSA_registrar_verification_key,
-      vote_msg.vote,
-      vote_msg.unblinded_signature);
-    if (!valid){
-      throw std::runtime_error("Verify vote signature failed [RegistrarClient::HandleRegister].");
+
+    // // 2) verifies the server's signature, and verify the zkp
+    // valid = crypto_driver->RSA_BLIND_verify(
+    //   this->RSA_registrar_verification_key,
+    //   vote_msg.vote,
+    //   vote_msg.unblinded_signature);
+    // if (!valid){
+    //   throw std::runtime_error("Verify vote signature failed [RegistrarClient::HandleRegister].");
+    // }
+    // valid = ElectionClient::VerifyVoteZKP(std::make_pair(vote_msg.vote, vote_msg.zkp), this->EG_arbiter_public_key);
+    // if (!valid){
+    //   throw std::runtime_error("Verify zkp failed [RegistrarClient::HandleRegister].");
+    // }
+
+    // // 3) Signs the vote and publishes it to the database if it is valid.
+    // std::string signature = crypto_driver->RSA_sign(this->RSA_tallyer_signing_key, concat_vote_zkp_and_signature(vote_msg.vote, vote_msg.zkp, vote_msg.unblinded_signature));
+
+    // // 4) Mark this user as having already voted.
+    // vote_in_db.vote = vote_msg.vote;
+    // vote_in_db.zkp = vote_msg.zkp;
+    // vote_in_db.unblinded_signature = vote_msg.unblinded_signature;
+    // vote_in_db.tallyer_signature = signature;
+    // this->db_driver->insert_vote(vote_in_db);
+
+
+    // 2) verifies the vector of server's signature, and verify the zkp
+    for (int i = 0; i < vote_msg.votes.size(); i++) {
+      valid = crypto_driver->RSA_BLIND_verify(
+        this->RSA_registrar_verification_key,
+        vote_msg.votes[i],
+        vote_msg.unblinded_signatures[i]);
+      if (!valid){
+        throw std::runtime_error("Verify vote signature failed [RegistrarClient::HandleRegister].");
+      }
+      valid = ElectionClient::VerifyVoteZKP(std::make_pair(vote_msg.votes[i], vote_msg.zkps[i]), this->EG_arbiter_public_key);
+      if (!valid){
+        throw std::runtime_error("Verify zkp failed [RegistrarClient::HandleRegister].");
+      }
     }
-    valid = ElectionClient::VerifyVoteZKP(std::make_pair(vote_msg.vote, vote_msg.zkp), this->EG_arbiter_public_key);
-    if (!valid){
-      throw std::runtime_error("Verify zkp failed [RegistrarClient::HandleRegister].");
+    // 3) signs all signatures and publishes it to the database if it is valid
+    std::vector<std::string> signatures;
+    for (int i = 0; i < vote_msg.votes.size(); i++) {
+      std::string signature = crypto_driver->RSA_sign(this->RSA_tallyer_signing_key, concat_vote_zkp_and_signature(vote_msg.votes[i], vote_msg.zkps[i], vote_msg.unblinded_signatures[i]));
+      signatures.push_back(signature);
     }
-    // bool ElectionClient::VerifyVoteZKP(
-    //   std::pair<Vote_Ciphertext, VoteZKP_Struct> vote, CryptoPP::Integer pk) 
-
-    // 3) Signs the vote and publishes it to the database if it is valid.
-    std::string signature = crypto_driver->RSA_sign(this->RSA_tallyer_signing_key, concat_vote_zkp_and_signature(vote_msg.vote, vote_msg.zkp, vote_msg.unblinded_signature));
-    // std::string CryptoDriver::RSA_sign(const RSA::PrivateKey &signing_key,
-    //                                std::vector<unsigned char> message) {
-
-    //     struct TallyerToWorld_Vote_Message : public Serializable {
-    // Vote_Ciphertext vote;
-    // VoteZKP_Struct zkp;
-    // CryptoPP::Integer unblinded_signature;
-    // std::string
-    //     tallyer_signature; // computed on vote || zkp || unblinded_signature
-
-    // void serialize(std::vector<unsigned char> &data);
-    // int deserialize(std::vector<unsigned char> &data);
-    // };
-
     // 4) Mark this user as having already voted.
-
-    vote_in_db.vote = vote_msg.vote;
-    vote_in_db.zkp = vote_msg.zkp;
-    vote_in_db.unblinded_signature = vote_msg.unblinded_signature;
-    vote_in_db.tallyer_signature = signature;
+    vote_in_db.votes = vote_msg.votes;
+    vote_in_db.zkps = vote_msg.zkps;
+    vote_in_db.unblinded_signatures = vote_msg.unblinded_signatures;
+    vote_in_db.tallyer_signatures = signatures;
     this->db_driver->insert_vote(vote_in_db);
   }
 

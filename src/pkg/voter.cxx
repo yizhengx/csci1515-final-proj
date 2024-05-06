@@ -158,35 +158,73 @@ VoterClient::HandleKeyExchange(CryptoPP::RSA::PublicKey verification_key) {
 void VoterClient::HandleRegister(std::string input) {
   // Parse input and connect to registrar
   std::vector<std::string> args = string_split(input, ' ');
-  if (args.size() != 4) {
-    this->cli_driver->print_warning("usage: register <address> <port> <vote>");
+  if (args.size() < 4) {
+    this->cli_driver->print_warning("usage: register <address> <port> <n> <vote_0> ... <vote_n>");
     return;
   }
   this->network_driver->connect(args[1], std::stoi(args[2]));
 
   // Load some info from config into variables
   std::string voter_id = this->voter_config.voter_id;
-  CryptoPP::Integer raw_vote = CryptoPP::Integer(std::stoi(args[3]));
 
-  // TODO: implement me!
-  std::cout << "Voter: " << voter_id << " && Vote: " << raw_vote << std::endl;
-  
+  /* ========================= OLD VERSION =========================*/
+  // CryptoPP::Integer raw_vote = CryptoPP::Integer(std::stoi(args[3]));
+  /* ======================== OLD VERSION END =======================*/
+
+  CryptoPP::Integer num_votes = CryptoPP::Integer(std::stoi(args[3]));
+  if (args.size() != 4 + num_votes){
+    this->cli_driver->print_warning("usage: wrong number of votes ");
+    return;
+  }
+  std::vector<CryptoPP::Integer> raw_votes;
+  for (size_t i = 4; i < args.size(); ++i){
+    raw_votes.push_back(CryptoPP::Integer(std::stoi(args[i])));
+  }
+
+  // TODO: implement me!  
   //  1) Handle key exchange.
   CryptoPP::SecByteBlock AES_key, HMAC_key;
   std::tie(AES_key, HMAC_key) = this->HandleKeyExchange(this->RSA_registrar_verification_key);
+
   //  2) ElGamal encrypt the raw vote and generate a ZKP for it
   //     through `ElectionClient::GenerateVote`.
-  Vote_Ciphertext vote_s;
-  VoteZKP_Struct vote_zpk;
-  std::tie(vote_s, vote_zkp) = ElectionClient::GenerateVote(raw_vote, this->EG_arbiter_public_key);
-  // std::cout << "Vote_s -> " << vote_s.a << " || " << vote_s.b << std::endl;
+  // for each vote in raw votes, generate a vector of vote_s and vote_zkp
+  std::vector<Vote_Ciphertext> vote_s_vec;
+  std::vector<VoteZKP_Struct> vote_zkp_vec;
+  for (size_t i = 0; i < raw_votes.size(); ++i){
+    Vote_Ciphertext vote_s;
+    VoteZKP_Struct vote_zkp;
+    std::tie(vote_s, vote_zkp) = ElectionClient::GenerateVote(raw_votes[i], this->EG_arbiter_public_key);
+    vote_s_vec.push_back(vote_s);
+    vote_zkp_vec.push_back(vote_zkp);
+  }
+  /* ========================= OLD VERSION =========================*/
+  // Vote_Ciphertext vote_s;
+  // VoteZKP_Struct vote_zpk;
+  // std::tie(vote_s, vote_zkp) = ElectionClient::GenerateVote(raw_vote, this->EG_arbiter_public_key);
+  /* ======================== OLD VERSION END =======================*/
+
+
   //  2) Blind the vote and send it to the registrar.
-  CryptoPP::Integer blind_msg, blind_factor;
-  std::tie(blind_msg, blind_factor) = this->crypto_driver->RSA_BLIND_blind(this->RSA_registrar_verification_key, vote_s);
-  // std::cout << "Blind msg -> " << blind_msg << " && Blind factor -> " << blind_factor << std::endl;
+  // generate a list of blind_msg and blind_factor for each vote in vote_s, send the list of blind_msg to registrar
+  std::vector<CryptoPP::Integer> blind_msg_vec, blind_factor_vec;
+  for (size_t i = 0; i < vote_s_vec.size(); ++i){
+    CryptoPP::Integer blind_msg, blind_factor;
+    std::tie(blind_msg, blind_factor) = this->crypto_driver->RSA_BLIND_blind(this->RSA_registrar_verification_key, vote_s_vec[i]);
+    blind_msg_vec.push_back(blind_msg);
+    blind_factor_vec.push_back(blind_factor);
+  }
   VoterToRegistrar_Register_Message v2r_reg_s;
   v2r_reg_s.id = voter_id;
-  v2r_reg_s.vote = blind_msg;
+  v2r_reg_s.votes = blind_msg_vec;
+
+  /* ========================= OLD VERSION =========================*/
+  // CryptoPP::Integer blind_msg, blind_factor;
+  // std::tie(blind_msg, blind_factor) = this->crypto_driver->RSA_BLIND_blind(this->RSA_registrar_verification_key, vote_s);
+  // VoterToRegistrar_Register_Message v2r_reg_s;
+  // v2r_reg_s.id = voter_id;
+  // v2r_reg_s.vote = blind_msg;
+  /* ======================== OLD VERSION END =======================*/
   std::vector<unsigned char> data_to_send;
   data_to_send = this->crypto_driver->encrypt_and_tag(AES_key, HMAC_key, &v2r_reg_s);
   this->network_driver->send(data_to_send);
@@ -201,21 +239,42 @@ void VoterClient::HandleRegister(std::string input) {
     throw std::runtime_error("CryptoDriver decrypt_and_verify failed [VoterClient::HandleRegister].");
   }
   r2v_sig_s.deserialize(decrypted_data);
-  // std::cout << "Signature -> " << r2v_sig_s.registrar_signature << std::endl;
   
   // Save the ElGamal encrypted vote, ZKP, registrar signature, and blind
   // to both memory and disk
   // [STUDENTS] You may have named the RHS variables below differently.
   // Rename them to match your code.
-  this->vote = vote_s;
-  this->vote_zkp = vote_zkp;
-  this->registrar_signature = r2v_sig_s.registrar_signature;
-  this->blind = blind_factor;
-  SaveVote(this->voter_config.voter_vote_path, vote_s);
-  SaveVoteZKP(this->voter_config.voter_vote_zkp_path, vote_zkp);
-  SaveInteger(this->voter_config.voter_registrar_signature_path,
-              r2v_sig_s.registrar_signature);
-  SaveInteger(this->voter_config.voter_blind_path, blind);
+  
+
+  // save vectors
+  this->votes = vote_s_vec;
+  this->vote_zkps = vote_zkp_vec;
+  this->registrar_signatures = r2v_sig_s.registrar_signatures;
+  this->blinds = blind_factor_vec;
+
+  /* ========================= OLD VERSION =========================*/
+  // this->vote = vote_s;
+  // this->vote_zkp = vote_zkp;
+  // this->registrar_signature = r2v_sig_s.registrar_signature;
+  // this->blind = blind_factor;
+  /* ======================== OLD VERSION END =======================*/
+
+  // save the number of votes
+  SaveInteger(this->voter_config.voter_vote_path + voter_id + "_num_votes", num_votes);
+  // save all votes for blind_msgs with a path with this->voter_config.voter_vote_path+"id"
+  for (size_t i = 0; i < blind_msg_vec.size(); ++i){
+    SaveVote(this->voter_config.voter_vote_path + voter_id + "_" + std::to_string(i), vote_s_vec[i]);
+    SaveVoteZKP(this->voter_config.voter_vote_zkp_path + voter_id + "_" + std::to_string(i), vote_zkp_vec[i]);
+    SaveInteger(this->voter_config.voter_registrar_signature_path + voter_id + "_" + std::to_string(i), r2v_sig_s.registrar_signature);
+    SaveInteger(this->voter_config.voter_blind_path + voter_id + "_" + std::to_string(i), blind_factor_vec[i]);
+  }
+  /* ========================= OLD VERSION =========================*/
+  // SaveVote(this->voter_config.voter_vote_path, vote_s);
+  // SaveVoteZKP(this->voter_config.voter_vote_zkp_path, vote_zkp);
+  // SaveInteger(this->voter_config.voter_registrar_signature_path,
+  //             r2v_sig_s.registrar_signature);
+  // SaveInteger(this->voter_config.voter_blind_path, blind);
+  /* ======================== OLD VERSION END =======================*/
 
   this->cli_driver->print_info(
       "Voter registered! Vote saved at " + this->voter_config.voter_vote_path +
@@ -240,27 +299,52 @@ void VoterClient::HandleVote(std::string input) {
   this->network_driver->connect(args[1], std::stoi(args[2]));
 
   // TODO: implement me!
-  // --------------------------------
+
   //  1) Handle key exchange.
   CryptoPP::SecByteBlock AES_key, HMAC_key;
   std::tie(AES_key, HMAC_key) = this->HandleKeyExchange(this->RSA_tallyer_verification_key);
-  //  2) Unblinds the registrar signature that is stored in `this->registrar_signature`.
-  CryptoPP::Integer unblind_s = this->crypto_driver->RSA_BLIND_unblind(
-    this->RSA_registrar_verification_key, 
-    this->registrar_signature, 
-    this->blind);
-  // std::cout << "Sig -> " << this->registrar_signature << std::endl;
-  // std::cout << "Unblind sig -> " << unblind_s << std::endl;
-  //  3) Sends the vote, ZKP, and unblinded signature to the tallyer.
+  
+  /* ========================= OLD VERSION =========================*/
+  // //  2) Unblinds the registrar signature that is stored in `this->registrar_signature`.
+  // CryptoPP::Integer unblind_s = this->crypto_driver->RSA_BLIND_unblind(
+  //   this->RSA_registrar_verification_key, 
+  //   this->registrar_signature, 
+  //   this->blind);
+  // //  3) Sends the vote, ZKP, and unblinded signature to the tallyer.
+  // VoterToTallyer_Vote_Message vote_msg;
+  // vote_msg.vote = this->vote;
+  // vote_msg.unblinded_signature = unblind_s;
+  // vote_msg.zkp = this->vote_zkp;
+  // std::vector<unsigned char> data_to_send;
+  // data_to_send = this->crypto_driver->encrypt_and_tag(AES_key, HMAC_key, &vote_msg);
+  // this->network_driver->send(data_to_send);
+  // // Exit cleanly.
+  // this->network_driver->disconnect();
+  /* ======================== OLD VERSION END =======================*/
+
+
+  //  2) Creates a list of unblind_s 
+  // unblinds the vector of registrar signatures that is stored in `this->registrar_signatures`.
+  std::vector<CryptoPP::Integer> unblind_s_vec;
+  for (size_t i = 0; i < this->registrar_signatures.size(); ++i){
+    CryptoPP::Integer unblind_s = this->crypto_driver->RSA_BLIND_unblind(
+      this->RSA_registrar_verification_key, 
+      this->registrar_signatures[i], 
+      this->blinds[i]);
+    unblind_s_vec.push_back(unblind_s);
+  }
+
+  //  3) Sends the votes, ZKPs, and unblinded signatures to the tallyer.
   VoterToTallyer_Vote_Message vote_msg;
-  vote_msg.vote = this->vote;
-  vote_msg.unblinded_signature = unblind_s;
-  vote_msg.zkp = this->vote_zkp;
+  vote_msg.votes = this->votes;
+  vote_msg.unblinded_signatures = unblind_s_vec;
+  vote_msg.zkps = this->vote_zkps;
   std::vector<unsigned char> data_to_send;
   data_to_send = this->crypto_driver->encrypt_and_tag(AES_key, HMAC_key, &vote_msg);
   this->network_driver->send(data_to_send);
   // Exit cleanly.
   this->network_driver->disconnect();
+
 }
 
 /**

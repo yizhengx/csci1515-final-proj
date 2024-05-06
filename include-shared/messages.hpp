@@ -106,6 +106,7 @@ struct ServerToUser_DHPublicValue_Message : public Serializable {
 struct VoterToRegistrar_Register_Message : public Serializable {
   std::string id;
   CryptoPP::Integer vote;
+  std::vector<CryptoPP::Integer> votes;
 
   void serialize(std::vector<unsigned char> &data);
   int deserialize(std::vector<unsigned char> &data);
@@ -114,6 +115,8 @@ struct VoterToRegistrar_Register_Message : public Serializable {
 struct RegistrarToVoter_Blind_Signature_Message : public Serializable {
   std::string id;
   CryptoPP::Integer registrar_signature;
+  // list of signatures
+  std::vector<CryptoPP::Integer> registrar_signatures;
 
   void serialize(std::vector<unsigned char> &data);
   int deserialize(std::vector<unsigned char> &data);
@@ -143,6 +146,10 @@ struct VoterToTallyer_Vote_Message : public Serializable {
   Vote_Ciphertext vote;
   CryptoPP::Integer unblinded_signature;
   VoteZKP_Struct zkp;
+  // create a list of votes, vote_zkp, unblinded_signature
+  std::vector<Vote_Ciphertext> votes;
+  std::vector<VoteZKP_Struct> zkps;
+  std::vector<CryptoPP::Integer> unblinded_signatures;
   void serialize(std::vector<unsigned char> &data);
   int deserialize(std::vector<unsigned char> &data);
 };
@@ -153,6 +160,12 @@ struct TallyerToWorld_Vote_Message : public Serializable {
   CryptoPP::Integer unblinded_signature;
   std::string
       tallyer_signature; // computed on vote || zkp || unblinded_signature
+  
+  // create lists of all aboves
+  std::vector<Vote_Ciphertext> votes;
+  std::vector<VoteZKP_Struct> zkps;
+  std::vector<CryptoPP::Integer> unblinded_signatures;
+  std::vector<std::string> tallyer_signatures;
 
   void serialize(std::vector<unsigned char> &data);
   int deserialize(std::vector<unsigned char> &data);

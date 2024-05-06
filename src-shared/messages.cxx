@@ -235,6 +235,7 @@ void RegistrarToVoter_Blind_Signature_Message::serialize(
   // Add fields.
   put_string(this->id, data);
   put_integer(this->registrar_signature, data);
+  
 }
 
 /**

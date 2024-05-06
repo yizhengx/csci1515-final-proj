@@ -106,7 +106,6 @@ void ArbiterClient::HandleAdjudicate(std::string _) {
   // TODO: implement me!
 
   // 2) Gets all of the votes from the database.
-  // std::vector<VoteRow> DBDriver::all_votes() 
   std::vector<VoteRow> all_votes = this->db_driver->all_votes();
 
   // 3) Verifies all of the vote ZKPs and their signatures.
@@ -117,9 +116,6 @@ void ArbiterClient::HandleAdjudicate(std::string _) {
     VoteRow vote;
 
     vote = all_votes[i];
-    // bool CryptoDriver::RSA_verify(const RSA::PublicKey &verification_key,
-    //                           std::vector<unsigned char> message,
-    //                           std::string signature)
     valid = this->crypto_driver->RSA_verify(
       this->RSA_tallyer_verification_key,
       concat_vote_zkp_and_signature(vote.vote, vote.zkp, vote.unblinded_signature),
@@ -150,9 +146,6 @@ void ArbiterClient::HandleAdjudicate(std::string _) {
   Vote_Ciphertext combined_vote = ElectionClient::CombineVotes(valid_votes);
 
   // 5) Partially decrypts the combined vote.
-//   std::pair<PartialDecryption_Struct, DecryptionZKP_Struct>
-// ElectionClient::PartialDecrypt(Vote_Ciphertext combined_vote,
-//                                CryptoPP::Integer pk, CryptoPP::Integer sk)
   PartialDecryption_Struct partial_dec;
   DecryptionZKP_Struct zkp_dec;
   std::tie(partial_dec, zkp_dec) = ElectionClient::PartialDecrypt(combined_vote, this->EG_arbiter_public_key_i, this->EG_arbiter_secret_key);
@@ -163,25 +156,5 @@ void ArbiterClient::HandleAdjudicate(std::string _) {
   a2w_msg.arbiter_vk_path = this->arbiter_config.arbiter_public_key_path;
   a2w_msg.dec = partial_dec;
   a2w_msg.zkp = zkp_dec;
-  // std::cout << a2w_msg.arbiter_id << "**" << a2w_msg.arbiter_vk_path << std::endl;
   this->db_driver->insert_partial_decryption(a2w_msg);
-
-  // struct ArbiterToWorld_PartialDecryption_Message : public Serializable {
-//   std::string arbiter_id;
-//   std::string arbiter_vk_path;
-//   PartialDecryption_Struct dec;
-//   DecryptionZKP_Struct zkp;
-
-//   void serialize(std::vector<unsigned char> &data);
-//   int deserialize(std::vector<unsigned char> &data);
-// };
-// struct ArbiterConfig {
-//   std::string arbiter_id;
-//   std::string arbiter_public_key_path;
-//   std::string arbiter_secret_key_path;
-// };
-// ArbiterConfig load_arbiter_config(std::string filename);
-
-  
-
 }

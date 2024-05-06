@@ -43,6 +43,12 @@ private:
   CryptoPP::SecByteBlock AES_key;
   CryptoPP::SecByteBlock HMAC_key;
 
+  // create list of all vote, vote_zkp, signatures and blinds
+  std::vector<Vote_Ciphertext> votes;
+  std::vector<VoteZKP_Struct> vote_zkps;
+  std::vector<CryptoPP::Integer> registrar_signatures;
+  std::vector<CryptoPP::Integer> blinds;
+  
   Vote_Ciphertext vote;
   VoteZKP_Struct vote_zkp;
   CryptoPP::Integer registrar_signature;
