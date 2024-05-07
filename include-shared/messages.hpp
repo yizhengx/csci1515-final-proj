@@ -199,6 +199,7 @@ struct ArbiterToWorld_PartialDecryption_Message : public Serializable {
   std::string arbiter_vk_path;
   PartialDecryption_Struct dec;
   DecryptionZKP_Struct zkp;
+  size_t candidate_id;
 
   void serialize(std::vector<unsigned char> &data);
   int deserialize(std::vector<unsigned char> &data);

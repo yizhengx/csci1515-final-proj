@@ -113,48 +113,103 @@ void ArbiterClient::HandleAdjudicate(std::string _) {
   std::vector<VoteRow> valid_votes;
   bool valid;
   for (size_t i = 0; i < all_votes.size(); ++i) {
-    VoteRow vote;
+    /* OLD */
+    // VoteRow vote;
+    // vote = all_votes[i];
+    // valid = this->crypto_driver->RSA_verify(
+    //   this->RSA_tallyer_verification_key,
+    //   concat_vote_zkp_and_signature(vote.vote, vote.zkp, vote.unblinded_signature),
+    //   vote.tallyer_signature
+    // );
+    // if (!valid){
+    //   continue;
+    // }
+    // valid = this->crypto_driver->RSA_BLIND_verify(
+    //   this->RSA_registrar_verification_key,
+    //   vote.vote,
+    //   vote.unblinded_signature
+    // );
+    // if (!valid){
+    //   continue;
+    // }
+    // valid = ElectionClient::VerifyVoteZKP(std::make_pair(vote.vote, vote.zkp), this->EG_arbiter_public_key);
+    // if (!valid){
+    //   continue;
+    // }
+    // valid_votes.push_back(vote);
+    /* OLD END */
 
-    vote = all_votes[i];
-    valid = this->crypto_driver->RSA_verify(
-      this->RSA_tallyer_verification_key,
-      concat_vote_zkp_and_signature(vote.vote, vote.zkp, vote.unblinded_signature),
-      vote.tallyer_signature
-    );
-    if (!valid){
-      continue;
+    // verify all votes in each vote
+    valid = true;
+    for (size_t j = 0; j < all_votes[i].votes.size(); ++j) {
+      Vote_Ciphertext vote = all_votes[i].votes[j];
+      VoteZKP_Struct zkp = all_votes[i].zkps[j];
+      bool valid_signature = this->crypto_driver->RSA_verify(
+        this->RSA_tallyer_verification_key,
+        concat_vote_zkp_and_signature(vote, zkp, all_votes[i].unblinded_signature),
+        all_votes[i].tallyer_signature
+      );
+      bool valid_vote = ElectionClient::VerifyVoteZKP(std::make_pair(vote, zkp), this->EG_arbiter_public_key);
+      if (!valid_signature || !valid_vote) {
+        valid = false;
+        break;
+      }
     }
-    valid = this->crypto_driver->RSA_BLIND_verify(
-      this->RSA_registrar_verification_key,
-      vote.vote,
-      vote.unblinded_signature
-    );
-    if (!valid){
-      continue;
+    if (valid) {
+      valid_votes.push_back(all_votes[i]);
     }
-    // bool ElectionClient::VerifyVoteZKP(
-    // std::pair<Vote_Ciphertext, VoteZKP_Struct> vote, CryptoPP::Integer pk) 
-    valid = ElectionClient::VerifyVoteZKP(std::make_pair(vote.vote, vote.zkp), this->EG_arbiter_public_key);
-    if (!valid){
-      continue;
-    }
-    valid_votes.push_back(vote);
+
   }
-  // std::cout << "Size -> " << valid_votes.size() << std::endl; 
-  // 4) Combines all valid votes into one vote via `Election::CombineVotes`.
-  // Vote_Ciphertext ElectionClient::CombineVotes(std::vector<VoteRow> all_votes) 
-  Vote_Ciphertext combined_vote = ElectionClient::CombineVotes(valid_votes);
+  /* OLD */
+  // // 4) Combines all valid votes into one vote via `Election::CombineVotes`.
+  // // Vote_Ciphertext ElectionClient::CombineVotes(std::vector<VoteRow> all_votes) 
+  // Vote_Ciphertext combined_vote = ElectionClient::CombineVotes(valid_votes);
 
-  // 5) Partially decrypts the combined vote.
-  PartialDecryption_Struct partial_dec;
-  DecryptionZKP_Struct zkp_dec;
-  std::tie(partial_dec, zkp_dec) = ElectionClient::PartialDecrypt(combined_vote, this->EG_arbiter_public_key_i, this->EG_arbiter_secret_key);
+  // // 5) Partially decrypts the combined vote.
+  // PartialDecryption_Struct partial_dec;
+  // DecryptionZKP_Struct zkp_dec;
+  // std::tie(partial_dec, zkp_dec) = ElectionClient::PartialDecrypt(combined_vote, this->EG_arbiter_public_key_i, this->EG_arbiter_secret_key);
 
-  // 6) Publishes the decryption and zkp to the database.
-  PartialDecryptionRow a2w_msg;
-  a2w_msg.arbiter_id = this->arbiter_config.arbiter_id;
-  a2w_msg.arbiter_vk_path = this->arbiter_config.arbiter_public_key_path;
-  a2w_msg.dec = partial_dec;
-  a2w_msg.zkp = zkp_dec;
-  this->db_driver->insert_partial_decryption(a2w_msg);
+  // // 6) Publishes the decryption and zkp to the database.
+  // PartialDecryptionRow a2w_msg;
+  // a2w_msg.arbiter_id = this->arbiter_config.arbiter_id;
+  // a2w_msg.arbiter_vk_path = this->arbiter_config.arbiter_public_key_path;
+  // a2w_msg.dec = partial_dec;
+  // a2w_msg.zkp = zkp_dec;
+  // this->db_driver->insert_partial_decryption(a2w_msg);
+  /* OLD END */
+
+
+  if (valid_votes.size() == 0){
+    return;
+  }
+  // combine all votes[i] from all valid votes
+  std::vector<Vote_Ciphertext> combined_votes;
+  for (size_t i = 0; i < valid_votes[0].votes.size(); ++i) {
+    // create a vector to store all votes
+    std::vector<VoteRow> votes;
+    for (size_t j = 0; j < valid_votes.size(); ++j) {
+      // votes.push_back(valid_votes[j].votes[i]);
+      VoteRow vote;
+      vote.vote = valid_votes[j].votes[i];
+      vote.zkp = valid_votes[j].zkps[i];
+      votes.push_back(vote);
+    }
+    combined_votes.push_back(ElectionClient::CombineVotes(votes));
+  }
+
+  // for each combined votes, partial decrypt and insert into db
+  for (size_t i = 0; i < combined_votes.size(); ++i) {
+    PartialDecryption_Struct partial_dec;
+    DecryptionZKP_Struct zkp_dec;
+    std::tie(partial_dec, zkp_dec) = ElectionClient::PartialDecrypt(combined_votes[i], this->EG_arbiter_public_key_i, this->EG_arbiter_secret_key);
+
+    PartialDecryptionRow a2w_msg;
+    a2w_msg.arbiter_id = this->arbiter_config.arbiter_id;
+    a2w_msg.arbiter_vk_path = this->arbiter_config.arbiter_public_key_path;
+    a2w_msg.dec = partial_dec;
+    a2w_msg.zkp = zkp_dec;
+    a2w_msg.candidate_id = i;
+    this->db_driver->insert_partial_decryption(a2w_msg);
+  }
 }
