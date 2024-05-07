@@ -27,7 +27,7 @@ public:
   void HandleRegister(std::string input);
   void HandleVote(std::string input);
   void HandleVerify(std::string input);
-  std::tuple<CryptoPP::Integer, CryptoPP::Integer, bool> DoVerify();
+  std::pair<std::vector<CryptoPP::Integer>, bool> DoVerify();
 
 private:
   std::string id;
