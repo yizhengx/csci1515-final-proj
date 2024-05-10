@@ -107,7 +107,7 @@ void ArbiterClient::HandleAdjudicate(std::string _) {
 
   // 2) Gets all of the votes from the database.
   std::vector<VoteRow> all_votes = this->db_driver->all_votes();
-
+  // std::cout << "[Debug] All votes: " << all_votes.size() << std::endl;
   // 3) Verifies all of the vote ZKPs and their signatures.
   //    If a vote is invalid, simply ignore it.
   std::vector<VoteRow> valid_votes;
@@ -146,11 +146,13 @@ void ArbiterClient::HandleAdjudicate(std::string _) {
       VoteZKP_Struct zkp = all_votes[i].zkps[j];
       bool valid_signature = this->crypto_driver->RSA_verify(
         this->RSA_tallyer_verification_key,
-        concat_vote_zkp_and_signature(vote, zkp, all_votes[i].unblinded_signature),
-        all_votes[i].tallyer_signature
+        concat_vote_zkp_and_signature(vote, zkp, all_votes[i].unblinded_signatures[j]),
+        all_votes[i].tallyer_signatures[j]
       );
       bool valid_vote = ElectionClient::VerifyVoteZKP(std::make_pair(vote, zkp), this->EG_arbiter_public_key);
       if (!valid_signature || !valid_vote) {
+        // std::cout << "[Debug] valid sign -> " << std::to_string(valid_signature) << std::endl;
+        // std::cout << "[Debug] valid vote -> " << std::to_string(valid_vote) << std::endl;
         valid = false;
         break;
       }
@@ -158,8 +160,8 @@ void ArbiterClient::HandleAdjudicate(std::string _) {
     if (valid) {
       valid_votes.push_back(all_votes[i]);
     }
-
   }
+  // std::cout << "[Debug] Valid votes: " << valid_votes.size() << std::endl;
   /* OLD */
   // // 4) Combines all valid votes into one vote via `Election::CombineVotes`.
   // // Vote_Ciphertext ElectionClient::CombineVotes(std::vector<VoteRow> all_votes) 
@@ -185,10 +187,11 @@ void ArbiterClient::HandleAdjudicate(std::string _) {
   }
   // combine all votes[i] from all valid votes
   std::vector<Vote_Ciphertext> combined_votes;
+  // std::cout << "[Debug] valid_votes[0].votes.size() -> " << valid_votes[0].votes.size() << std::endl;
   for (size_t i = 0; i < valid_votes[0].votes.size(); ++i) {
     // create a vector to store all votes
     std::vector<VoteRow> votes;
-    for (size_t j = 0; j < valid_votes.size(); ++j) {
+    for (size_t j = 0; j < valid_votes.size(); j++) {
       // votes.push_back(valid_votes[j].votes[i]);
       VoteRow vote;
       vote.vote = valid_votes[j].votes[i];
@@ -199,6 +202,7 @@ void ArbiterClient::HandleAdjudicate(std::string _) {
   }
 
   // for each combined votes, partial decrypt and insert into db
+  // std::cout << "[Debug] combined_votes.size() -> " << combined_votes.size() << std::endl;
   for (size_t i = 0; i < combined_votes.size(); ++i) {
     PartialDecryption_Struct partial_dec;
     DecryptionZKP_Struct zkp_dec;
