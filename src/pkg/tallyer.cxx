@@ -170,9 +170,11 @@ void TallyerClient::HandleTally(std::shared_ptr<NetworkDriver> network_driver,
   if (!valid){
     throw std::runtime_error("CryptoDriver decrypt_and_verify failed [TallyerClient::HandleTally].");
   }
+  // print a debugging message here
+  // std::cout << "[Debug] before vote_msg.deserialize" << std::endl;
   vote_msg.deserialize(decrypted_data);
   
-  if (!this->db_driver->vote_exists(vote_msg.vote)) {
+  // if (!this->db_driver->vote_exists(vote_msg.vote)) {
     VoteRow vote_in_db;
 
     // // 2) verifies the server's signature, and verify the zkp
@@ -200,6 +202,7 @@ void TallyerClient::HandleTally(std::shared_ptr<NetworkDriver> network_driver,
 
 
     // 2) verifies the vector of server's signature, and verify the zkp
+    // std::cout << "[Debug] vote_msg.votes.size() -> " << vote_msg.votes.size() << std::endl;
     for (int i = 0; i < vote_msg.votes.size(); i++) {
       valid = crypto_driver->RSA_BLIND_verify(
         this->RSA_registrar_verification_key,
@@ -225,7 +228,7 @@ void TallyerClient::HandleTally(std::shared_ptr<NetworkDriver> network_driver,
     vote_in_db.unblinded_signatures = vote_msg.unblinded_signatures;
     vote_in_db.tallyer_signatures = signatures;
     this->db_driver->insert_vote(vote_in_db);
-  }
+  // }
 
   // Exit cleanly.
   network_driver->disconnect();

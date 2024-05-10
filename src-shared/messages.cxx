@@ -206,6 +206,15 @@ void VoterToRegistrar_Register_Message::serialize(
   // Add fields.
   put_string(this->id, data);
   put_integer(this->vote, data);
+
+  // Add votes
+  int idx = data.size();
+  data.resize(idx + sizeof(size_t));
+  size_t votes_size = this->votes.size();
+  std::memcpy(&data[idx], &votes_size, sizeof(size_t));
+  for (int i = 0; i < votes_size; i++){
+    put_integer(this->votes[i], data);
+  }
 }
 
 /**
@@ -221,6 +230,17 @@ int VoterToRegistrar_Register_Message::deserialize(
   int n = 1;
   n += get_string(&this->id, data, n);
   n += get_integer(&this->vote, data, n);
+
+  // Get number of votes.
+  size_t votes_size;
+  std::memcpy(&votes_size, &data[n], sizeof(size_t));
+  n += sizeof(size_t);
+  for (int i = 0; i < votes_size; i++) {
+    CryptoPP::Integer vote;
+    n += get_integer(&vote, data, n);
+    this->votes.push_back(vote);
+  }
+
   return n;
 }
 
@@ -235,7 +255,15 @@ void RegistrarToVoter_Blind_Signature_Message::serialize(
   // Add fields.
   put_string(this->id, data);
   put_integer(this->registrar_signature, data);
-  
+
+  // Add votes
+  int idx = data.size();
+  data.resize(idx + sizeof(size_t));
+  size_t registrar_signatures_size = this->registrar_signatures.size();
+  std::memcpy(&data[idx], &registrar_signatures_size, sizeof(size_t));
+  for (int i = 0; i < registrar_signatures_size; i++){
+    put_integer(this->registrar_signatures[i], data);
+  }
 }
 
 /**
@@ -250,6 +278,18 @@ int RegistrarToVoter_Blind_Signature_Message::deserialize(
   int n = 1;
   n += get_string(&this->id, data, n);
   n += get_integer(&this->registrar_signature, data, n);
+
+  // Get number of votes.
+  size_t registrar_signatures_size;
+  std::memcpy(&registrar_signatures_size, &data[n], sizeof(size_t));
+  n += sizeof(size_t);
+
+  // Get each vote.
+  for (int i = 0; i < registrar_signatures_size; i++) {
+    std::string registrar_signatures_str;
+    n += get_string(&registrar_signatures_str, data, n);
+    this->registrar_signatures.push_back(string_to_integer(registrar_signatures_str));
+  }
 
   return n;
 }
@@ -340,6 +380,37 @@ void VoterToTallyer_Vote_Message::serialize(std::vector<unsigned char> &data) {
   std::vector<unsigned char> zkp_data;
   this->zkp.serialize(zkp_data);
   data.insert(data.end(), zkp_data.begin(), zkp_data.end());
+
+  // Add votes
+  int idx = data.size();
+  data.resize(idx + sizeof(size_t));
+  size_t votes_size = this->votes.size();
+  std::memcpy(&data[idx], &votes_size, sizeof(size_t));
+  for (int i = 0; i < votes_size; i++){
+    std::vector<unsigned char> vote_data;
+    this->votes[i].serialize(vote_data);
+    data.insert(data.end(), vote_data.begin(), vote_data.end());
+  }
+
+  // add zkps
+  idx = data.size();
+  data.resize(idx + sizeof(size_t));
+  size_t zkps_size = this->zkps.size();
+  std::memcpy(&data[idx], &zkps_size, sizeof(size_t));
+  for (int i = 0; i < zkps_size; i++){
+    std::vector<unsigned char> zkp_data;
+    this->zkps[i].serialize(zkp_data);
+    data.insert(data.end(), zkp_data.begin(), zkp_data.end());
+  }
+
+  // add signs 
+  idx = data.size();
+  data.resize(idx + sizeof(size_t));
+  size_t unblinded_signatures_size = this->unblinded_signatures.size();
+  std::memcpy(&data[idx], &unblinded_signatures_size, sizeof(size_t));
+  for (int i = 0; i < unblinded_signatures_size; i++){
+    put_integer(this->unblinded_signatures[i], data);
+  }
 }
 
 /**
@@ -360,6 +431,45 @@ int VoterToTallyer_Vote_Message::deserialize(std::vector<unsigned char> &data) {
   std::vector<unsigned char> zkp_slice =
       std::vector<unsigned char>(data.begin() + n, data.end());
   n += this->zkp.deserialize(zkp_slice);
+  
+  // Get number of votes.
+  size_t votes_size;
+  std::memcpy(&votes_size, &data[n], sizeof(size_t));
+  n += sizeof(size_t);
+
+  // Get each vote.
+  for (int i = 0; i < votes_size; i++) {
+    // std::string votes_str;
+    // n += get_string(&votes_str, data, n);
+    // this->votes.push_back(string_to_integer(votes_str));
+    std::vector<unsigned char> vote_slice =
+      std::vector<unsigned char>(data.begin() + n, data.end());
+    Vote_Ciphertext vote;
+    n += vote.deserialize(vote_slice);
+    this->votes.push_back(vote);
+  }
+
+  // deserialize zkps
+  size_t zkps_size;
+  std::memcpy(&zkps_size, &data[n], sizeof(size_t));
+  n += sizeof(size_t);
+  for (int i = 0; i < zkps_size; i++) {
+    VoteZKP_Struct zkp;
+    std::vector<unsigned char> zkp_slice =
+      std::vector<unsigned char>(data.begin() + n, data.end());
+    n += zkp.deserialize(zkp_slice);
+    this->zkps.push_back(zkp);
+  }
+
+  // deserialize signs
+  size_t unblinded_signatures_size;
+  std::memcpy(&unblinded_signatures_size, &data[n], sizeof(size_t));
+  n += sizeof(size_t);
+  for (int i = 0; i < unblinded_signatures_size; i++) {
+    CryptoPP::Integer unblinded_signature;
+    n += get_integer(&unblinded_signature, data, n);
+    this->unblinded_signatures.push_back(unblinded_signature);
+  }
 
   return n;
 }
@@ -383,6 +493,47 @@ void TallyerToWorld_Vote_Message::serialize(std::vector<unsigned char> &data) {
   put_integer(this->unblinded_signature, data);
 
   put_string(this->tallyer_signature, data);
+
+
+  // Add votes
+  int idx = data.size();
+  data.resize(idx + sizeof(size_t));
+  size_t votes_size = this->votes.size();
+  std::memcpy(&data[idx], &votes_size, sizeof(size_t));
+  for (int i = 0; i < votes_size; i++){
+    std::vector<unsigned char> vote_data;
+    this->votes[i].serialize(vote_data);
+    data.insert(data.end(), vote_data.begin(), vote_data.end());
+  }
+
+  // add zkps
+  idx = data.size();
+  data.resize(idx + sizeof(size_t));
+  size_t zkps_size = this->zkps.size();
+  std::memcpy(&data[idx], &zkps_size, sizeof(size_t));
+  for (int i = 0; i < zkps_size; i++){
+    std::vector<unsigned char> zkp_data;
+    this->zkps[i].serialize(zkp_data);
+    data.insert(data.end(), zkp_data.begin(), zkp_data.end());
+  }
+
+  // add signs 
+  idx = data.size();
+  data.resize(idx + sizeof(size_t));
+  size_t unblinded_signatures_size = this->unblinded_signatures.size();
+  std::memcpy(&data[idx], &unblinded_signatures_size, sizeof(size_t));
+  for (int i = 0; i < unblinded_signatures_size; i++){
+    put_integer(this->unblinded_signatures[i], data);
+  }
+
+  // serialize tallyer_signatures
+  idx = data.size();
+  data.resize(idx + sizeof(size_t));
+  size_t tallyer_signatures_size = this->tallyer_signatures.size();
+  std::memcpy(&data[idx], &tallyer_signatures_size, sizeof(size_t));
+  for (int i = 0; i < tallyer_signatures_size; i++){
+    put_string(this->tallyer_signatures[i], data);
+  }
 }
 
 /**
@@ -405,6 +556,53 @@ int TallyerToWorld_Vote_Message::deserialize(std::vector<unsigned char> &data) {
   n += get_integer(&this->unblinded_signature, data, n);
 
   n += get_string(&this->tallyer_signature, data, n);
+    
+  // deserialize votes
+  size_t votes_size;
+  std::memcpy(&votes_size, &data[n], sizeof(size_t));
+  n += sizeof(size_t);
+  for (int i = 0; i < votes_size; i++) {
+    // std::string votes_str;
+    // n += get_string(&votes_str, data, n);
+    // this->votes.push_back(string_to_integer(votes_str));
+    std::vector<unsigned char> vote_slice =
+      std::vector<unsigned char>(data.begin() + n, data.end());
+    Vote_Ciphertext vote;
+    n += vote.deserialize(vote_slice);
+    this->votes.push_back(vote);
+  }
+
+  // deserialize zkps
+  size_t zkps_size;
+  std::memcpy(&zkps_size, &data[n], sizeof(size_t));
+  n += sizeof(size_t);
+  for (int i = 0; i < zkps_size; i++) {
+    VoteZKP_Struct zkp;
+    std::vector<unsigned char> zkp_slice =
+      std::vector<unsigned char>(data.begin() + n, data.end());
+    n += zkp.deserialize(zkp_slice);
+    this->zkps.push_back(zkp);
+  }
+
+  // deserialize signs
+  size_t unblinded_signatures_size;
+  std::memcpy(&unblinded_signatures_size, &data[n], sizeof(size_t));
+  n += sizeof(size_t);
+  for (int i = 0; i < unblinded_signatures_size; i++) {
+    CryptoPP::Integer unblinded_signature;
+    n += get_integer(&unblinded_signature, data, n);
+    this->unblinded_signatures.push_back(unblinded_signature);
+  }
+
+  // deserialize tallyer_signatures
+  size_t tallyer_signatures_size;
+  std::memcpy(&tallyer_signatures_size, &data[n], sizeof(size_t));
+  n += sizeof(size_t);
+  for (int i = 0; i < tallyer_signatures_size; i++) {
+    std::string tallyer_signature;
+    n += get_string(&tallyer_signature, data, n);
+    this->tallyer_signatures.push_back(tallyer_signature);
+  }
   return n;
 }
 
@@ -491,6 +689,12 @@ void ArbiterToWorld_PartialDecryption_Message::serialize(
   std::vector<unsigned char> zkp_data;
   this->zkp.serialize(zkp_data);
   data.insert(data.end(), zkp_data.begin(), zkp_data.end());
+
+  // serialize cnadidate_id
+  int idx = data.size();
+  data.resize(idx + sizeof(size_t));
+  std::memcpy(&data[idx], &this->candidate_id, sizeof(size_t));
+
 }
 
 /**
@@ -514,6 +718,10 @@ int ArbiterToWorld_PartialDecryption_Message::deserialize(
   std::vector<unsigned char> zkp_slice =
       std::vector<unsigned char>(data.begin() + n, data.end());
   n += this->zkp.deserialize(zkp_slice);
+
+  // deserialize candidate_id
+  std::memcpy(&this->candidate_id, &data[n], sizeof(size_t));
+  n += sizeof(size_t);
   return n;
 }
 
