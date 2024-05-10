@@ -48,6 +48,7 @@ private:
   std::vector<VoteZKP_Struct> vote_zkps;
   std::vector<CryptoPP::Integer> registrar_signatures;
   std::vector<CryptoPP::Integer> blinds;
+  ExactK_Vote_ZKP exact_k_vote_zkp;
   
   Vote_Ciphertext vote;
   VoteZKP_Struct vote_zkp;

@@ -34,4 +34,10 @@ public:
   static CryptoPP::Integer
   CombineResults(Vote_Ciphertext combined_vote,
                  std::vector<PartialDecryptionRow> all_partial_decryptions);
+
+  static ExactK_Vote_ZKP GenerateExactKVotesZKP(
+      std::vector<Vote_Ciphertext>,
+      CryptoPP::Integer pk, CryptoPP::Integer R);
+
+  static bool VerifyExactKVotesZKP(ExactK_Vote_ZKP zkp, CryptoPP::Integer pk, int k);
 };

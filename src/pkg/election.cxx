@@ -181,6 +181,72 @@ bool ElectionClient::VerifyVoteZKP(
   return true;
 }
 
+
+/**
+ * Generate exactly k votes ZKP.
+*/
+
+ExactK_Vote_ZKP ElectionClient::GenerateExactKVotesZKP(
+    std::vector<Vote_Ciphertext> votes,
+    CryptoPP::Integer pk, CryptoPP::Integer R) {
+  initLogger();
+
+  CryptoPP::Integer C1 = 1;
+  CryptoPP::Integer C2 = 1;
+
+  for (size_t i = 0; i < votes.size(); ++i) {
+    C1 = a_times_b_mod_c(C1, votes[i].a, DL_P);
+    C2 = a_times_b_mod_c(C2, votes[i].b, DL_P);
+  }
+
+  ExactK_Vote_ZKP exact_k_vote_zkp;
+  CryptoPP::AutoSeededRandomPool prng;
+  CryptoPP::Integer r(prng, 1, DL_Q-1);
+  CryptoPP::Integer A = a_exp_b_mod_c(DL_G, r, DL_P);
+  CryptoPP::Integer B = a_times_b_mod_c(pk, r, DL_P);
+
+  CryptoPP::Integer sigma = hash_exact_k_vote_zkp(pk, C1, C2, A, B);
+
+  CryptoPP::Integer r_prime = (r + a_times_b_mod_c(sigma, R, DL_Q)) % DL_Q;
+
+  exact_k_vote_zkp.C1 = C1;
+  exact_k_vote_zkp.C2 = C2;
+  exact_k_vote_zkp.A = A;
+  exact_k_vote_zkp.B = B;
+  exact_k_vote_zkp.r = r_prime;
+
+  return exact_k_vote_zkp;
+
+}
+
+/*
+  Verify exactly k votes ZKP.
+*/
+
+bool ElectionClient::VerifyExactKVotesZKP(
+    ExactK_Vote_ZKP zkp, CryptoPP::Integer pk, int k) {
+  initLogger();
+
+  CryptoPP::Integer sigma = hash_exact_k_vote_zkp(pk, zkp.C1, zkp.C2, zkp.A, zkp.B);
+
+  if (a_exp_b_mod_c(DL_G, zkp.r, DL_P) != a_times_b_mod_c(zkp.A, a_exp_b_mod_c(zkp.C1, sigma, DL_P), DL_P)) {
+    return false;
+  }
+
+  CryptoPP::Integer pk_r = a_exp_b_mod_c(pk, zkp.r, DL_P);
+
+  CryptoPP::Integer g_k = a_exp_b_mod_c(DL_G, k, DL_P);
+  CryptoPP::Integer g_k_inv = CryptoPP::EuclideanMultiplicativeInverse(g_k, DL_P);
+  CryptoPP::Integer C2_div_g_k = a_times_b_mod_c(zkp.C2, g_k_inv, DL_P);
+
+  if (pk_r != a_times_b_mod_c(zkp.B, a_exp_b_mod_c(C2_div_g_k, sigma, DL_P), DL_P)) {
+    return false;
+  }
+
+  return true;
+}
+
+
 /**
  * Generate partial decryption and zkp.
  */

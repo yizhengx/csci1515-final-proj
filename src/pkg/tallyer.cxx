@@ -216,13 +216,21 @@ void TallyerClient::HandleTally(std::shared_ptr<NetworkDriver> network_driver,
         throw std::runtime_error("Verify zkp failed [RegistrarClient::HandleRegister].");
       }
     }
-    // 3) signs all signatures and publishes it to the database if it is valid
+
+    // 3) check exact k vote zkp
+    valid = ElectionClient::VerifyExactKVotesZKP(vote_msg.exact_k_vote_zkp, this->EG_arbiter_public_key, vote_msg.votes.size() / 2);
+    if (!valid){
+      cli_driver->print_warning("Verify exact k zkp failed.");
+      throw std::runtime_error("Verify exact k zkp failed.");
+    }
+
+    // 4) signs all signatures and publishes it to the database if it is valid
     std::vector<std::string> signatures;
     for (int i = 0; i < vote_msg.votes.size(); i++) {
       std::string signature = crypto_driver->RSA_sign(this->RSA_tallyer_signing_key, concat_vote_zkp_and_signature(vote_msg.votes[i], vote_msg.zkps[i], vote_msg.unblinded_signatures[i]));
       signatures.push_back(signature);
     }
-    // 4) Mark this user as having already voted.
+    // 5) Mark this user as having already voted.
     vote_in_db.votes = vote_msg.votes;
     vote_in_db.zkps = vote_msg.zkps;
     vote_in_db.unblinded_signatures = vote_msg.unblinded_signatures;

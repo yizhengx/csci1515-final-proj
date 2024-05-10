@@ -202,6 +202,14 @@ void VoterClient::HandleRegister(std::string input) {
     vote_s_vec.push_back(vote_s);
     vote_zkp_vec.push_back(vote_zkp);
   }
+
+  /*
+    generate exact k vote zkp
+  */
+  ExactK_Vote_ZKP exact_k_vote_zkp = ElectionClient::GenerateExactKVotesZKP(vote_s_vec, this->EG_arbiter_public_key, R);
+
+
+
   /* ========================= OLD VERSION =========================*/
   // Vote_Ciphertext vote_s;
   // VoteZKP_Struct vote_zpk;
@@ -255,6 +263,7 @@ void VoterClient::HandleRegister(std::string input) {
   this->vote_zkps = vote_zkp_vec;
   this->registrar_signatures = r2v_sig_s.registrar_signatures;
   this->blinds = blind_factor_vec;
+  this->exact_k_vote_zkp = exact_k_vote_zkp;
 
   /* ========================= OLD VERSION =========================*/
   // this->vote = vote_s;
@@ -293,7 +302,7 @@ void VoterClient::HandleRegister(std::string input) {
  * `this->registrar_signature`. 3) Sends the vote, ZKP, and unblinded signature
  * to the tallyer.
  */
-void VoterClient::HandleVote(std::string input) {
+void VoterClient::HandleVote(std::string input) { 
   // Parse input and connect to tallyer
   std::vector<std::string> args = string_split(input, ' ');
   if (args.size() != 3) {
@@ -343,6 +352,7 @@ void VoterClient::HandleVote(std::string input) {
   vote_msg.votes = this->votes;
   vote_msg.unblinded_signatures = unblind_s_vec;
   vote_msg.zkps = this->vote_zkps;
+  vote_msg.exact_k_vote_zkp = this->exact_k_vote_zkp;
   std::vector<unsigned char> data_to_send;
   data_to_send = this->crypto_driver->encrypt_and_tag(AES_key, HMAC_key, &vote_msg);
   this->network_driver->send(data_to_send);

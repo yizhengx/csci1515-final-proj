@@ -196,6 +196,55 @@ int ServerToUser_DHPublicValue_Message::deserialize(
 // ================================================
 
 /**
+ * serialize ExactK_Vote_ZKP.
+ */
+
+/*
+
+struct ExactK_Vote_ZKP : public Serializable {
+  CryptoPP::Integer c1;
+  CryptoPP::Integer c2;
+  CryptoPP::Integer A;
+  CryptoPP::Integer B;
+  CryptoPP::Integer r;
+
+  void serialize(std::vector<unsigned char> &data);
+  int deserialize(std::vector<unsigned char> &data);
+};
+
+ 
+*/
+void ExactK_Vote_ZKP::serialize(std::vector<unsigned char> &data) {
+  // Add message type.
+  data.push_back((char)MessageType::ExactK_Vote_ZKP);
+
+  // Add fields.
+  put_integer(this->C1, data);
+  put_integer(this->C2, data);
+  put_integer(this->A, data);
+  put_integer(this->B, data);
+  put_integer(this->r, data);
+}
+
+/**
+ * deserialize ExactK_Vote_ZKP.
+ */
+
+int ExactK_Vote_ZKP::deserialize(std::vector<unsigned char> &data) {
+  // Check correct message type.
+  assert(data[0] == MessageType::ExactK_Vote_ZKP);
+
+  // Get fields.
+  int n = 1;
+  n += get_integer(&this->C1, data, n);
+  n += get_integer(&this->C2, data, n);
+  n += get_integer(&this->A, data, n);
+  n += get_integer(&this->B, data, n);
+  n += get_integer(&this->r, data, n);
+  return n;
+}
+
+/**
  * serialize VoterToRegistrar_Register_Message.
  */
 void VoterToRegistrar_Register_Message::serialize(
@@ -411,6 +460,11 @@ void VoterToTallyer_Vote_Message::serialize(std::vector<unsigned char> &data) {
   for (int i = 0; i < unblinded_signatures_size; i++){
     put_integer(this->unblinded_signatures[i], data);
   }
+
+  // add exact_k_vote_zkp
+  std::vector<unsigned char> exact_k_vote_zkp_data;
+  this->exact_k_vote_zkp.serialize(exact_k_vote_zkp_data);
+  data.insert(data.end(), exact_k_vote_zkp_data.begin(), exact_k_vote_zkp_data.end());
 }
 
 /**
@@ -471,6 +525,11 @@ int VoterToTallyer_Vote_Message::deserialize(std::vector<unsigned char> &data) {
     this->unblinded_signatures.push_back(unblinded_signature);
   }
 
+  // deserialize exact_k_vote_zkp
+  std::vector<unsigned char> exact_k_vote_zkp_slice =
+      std::vector<unsigned char>(data.begin() + n, data.end());
+
+  n += this->exact_k_vote_zkp.deserialize(exact_k_vote_zkp_slice);
   return n;
 }
 

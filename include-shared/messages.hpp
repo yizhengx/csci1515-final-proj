@@ -32,6 +32,7 @@ enum T {
   PartialDecryption_Struct = 10,
   DecryptionZKP_Struct = 11,
   ArbiterToWorld_PartialDecryption_Message = 12,
+  ExactK_Vote_ZKP = 13,
 };
 };
 MessageType::T get_message_type(std::vector<unsigned char> &data);
@@ -143,6 +144,19 @@ struct VoteZKP_Struct : public Serializable {
   int deserialize(std::vector<unsigned char> &data);
 };
 
+// ================================================
+// Exact K Vote ZKP
+// ================================================
+struct ExactK_Vote_ZKP : public Serializable {
+  CryptoPP::Integer C1;
+  CryptoPP::Integer C2;
+  CryptoPP::Integer A;
+  CryptoPP::Integer B;
+  CryptoPP::Integer r;
+
+  void serialize(std::vector<unsigned char> &data);
+  int deserialize(std::vector<unsigned char> &data);
+};
 struct VoterToTallyer_Vote_Message : public Serializable {
   Vote_Ciphertext vote;
   CryptoPP::Integer unblinded_signature;
@@ -151,6 +165,7 @@ struct VoterToTallyer_Vote_Message : public Serializable {
   std::vector<Vote_Ciphertext> votes;
   std::vector<VoteZKP_Struct> zkps;
   std::vector<CryptoPP::Integer> unblinded_signatures;
+  ExactK_Vote_ZKP exact_k_vote_zkp;
   void serialize(std::vector<unsigned char> &data);
   int deserialize(std::vector<unsigned char> &data);
 };
@@ -206,6 +221,8 @@ struct ArbiterToWorld_PartialDecryption_Message : public Serializable {
   void serialize(std::vector<unsigned char> &data);
   int deserialize(std::vector<unsigned char> &data);
 };
+
+
 
 // ================================================
 // SIGNING HELPERS
