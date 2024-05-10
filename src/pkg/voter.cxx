@@ -191,10 +191,14 @@ void VoterClient::HandleRegister(std::string input) {
   // for each vote in raw votes, generate a vector of vote_s and vote_zkp
   std::vector<Vote_Ciphertext> vote_s_vec;
   std::vector<VoteZKP_Struct> vote_zkp_vec;
+  // ZKP for exactly k votes in t candidates
+  CryptoPP::Integer R;
   for (size_t i = 0; i < raw_votes.size(); ++i){
     Vote_Ciphertext vote_s;
     VoteZKP_Struct vote_zkp;
-    std::tie(vote_s, vote_zkp) = ElectionClient::GenerateVote(raw_votes[i], this->EG_arbiter_public_key);
+    CryptoPP::Integer r;
+    std::tie(vote_s, vote_zkp, r) = ElectionClient::GenerateVote(raw_votes[i], this->EG_arbiter_public_key);
+    R = (R + r) % DL_P;
     vote_s_vec.push_back(vote_s);
     vote_zkp_vec.push_back(vote_zkp);
   }

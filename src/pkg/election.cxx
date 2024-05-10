@@ -14,7 +14,7 @@ src::severity_logger<logging::trivial::severity_level> lg;
  * Generate Vote and ZKP.
  */
 
-std::pair<Vote_Ciphertext, VoteZKP_Struct>
+std::tuple<Vote_Ciphertext, VoteZKP_Struct, CryptoPP::Integer>
 ElectionClient::GenerateVote(CryptoPP::Integer vote, CryptoPP::Integer pk) {
   initLogger();
   // TODO: implement me!
@@ -142,7 +142,7 @@ ElectionClient::GenerateVote(CryptoPP::Integer vote, CryptoPP::Integer pk) {
   //   int deserialize(std::vector<unsigned char> &data);
   // };
 
-  return std::make_pair(vote_cipher, vote_zpk);
+  return std::make_tuple(vote_cipher, vote_zpk, r);
 }
 
 /**
