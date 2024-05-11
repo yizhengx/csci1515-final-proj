@@ -201,9 +201,9 @@ ExactK_Vote_ZKP ElectionClient::GenerateExactKVotesZKP(
 
   ExactK_Vote_ZKP exact_k_vote_zkp;
   CryptoPP::AutoSeededRandomPool prng;
-  CryptoPP::Integer r(prng, 1, DL_Q-1);
+  CryptoPP::Integer r(prng, 1, DL_Q - 1);
   CryptoPP::Integer A = a_exp_b_mod_c(DL_G, r, DL_P);
-  CryptoPP::Integer B = a_times_b_mod_c(pk, r, DL_P);
+  CryptoPP::Integer B = a_exp_b_mod_c(pk, r, DL_P);
 
   CryptoPP::Integer sigma = hash_exact_k_vote_zkp(pk, C1, C2, A, B);
 
@@ -229,17 +229,18 @@ bool ElectionClient::VerifyExactKVotesZKP(
 
   CryptoPP::Integer sigma = hash_exact_k_vote_zkp(pk, zkp.C1, zkp.C2, zkp.A, zkp.B);
 
-  if (a_exp_b_mod_c(DL_G, zkp.r, DL_P) != a_times_b_mod_c(zkp.A, a_exp_b_mod_c(zkp.C1, sigma, DL_P), DL_P)) {
+  if (CryptoPP::ModularExponentiation(DL_G, zkp.r, DL_P) != a_times_b_mod_c(zkp.A, CryptoPP::ModularExponentiation(zkp.C1, sigma, DL_P), DL_P)) {
     return false;
   }
 
-  CryptoPP::Integer pk_r = a_exp_b_mod_c(pk, zkp.r, DL_P);
+  CryptoPP::Integer pk_r = CryptoPP::ModularExponentiation(pk, zkp.r, DL_P);
 
-  CryptoPP::Integer g_k = a_exp_b_mod_c(DL_G, k, DL_P);
+  CryptoPP::Integer g_k = CryptoPP::ModularExponentiation(DL_G, k, DL_P);
   CryptoPP::Integer g_k_inv = CryptoPP::EuclideanMultiplicativeInverse(g_k, DL_P);
   CryptoPP::Integer C2_div_g_k = a_times_b_mod_c(zkp.C2, g_k_inv, DL_P);
 
-  if (pk_r != a_times_b_mod_c(zkp.B, a_exp_b_mod_c(C2_div_g_k, sigma, DL_P), DL_P)) {
+  if (pk_r != a_times_b_mod_c(zkp.B, CryptoPP::ModularExponentiation(C2_div_g_k, sigma, DL_P), DL_P)) {
+    std::cout << "pk_r != B * (C2 / g^k)^sigma" << std::endl;
     return false;
   }
 

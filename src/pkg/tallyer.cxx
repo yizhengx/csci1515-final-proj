@@ -216,7 +216,6 @@ void TallyerClient::HandleTally(std::shared_ptr<NetworkDriver> network_driver,
         throw std::runtime_error("Verify zkp failed [RegistrarClient::HandleRegister].");
       }
     }
-
     // 3) check exact k vote zkp
     valid = ElectionClient::VerifyExactKVotesZKP(vote_msg.exact_k_vote_zkp, this->EG_arbiter_public_key, vote_msg.votes.size() / 2);
     if (!valid){
@@ -224,6 +223,7 @@ void TallyerClient::HandleTally(std::shared_ptr<NetworkDriver> network_driver,
       throw std::runtime_error("Verify exact k zkp failed.");
     }
 
+    cli_driver->print_success("exact k zkp verified.");
     // 4) signs all signatures and publishes it to the database if it is valid
     std::vector<std::string> signatures;
     for (int i = 0; i < vote_msg.votes.size(); i++) {
